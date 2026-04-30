@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Fraud Checker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">F</div>
+      <div>
+        <h1>Financial Fraud Checker</h1>
+        <p>Live payment screening powered by agent workflows</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="status-chip status-green">Agent-First Screening</span>
+      <span class="status-chip status-orange">Feedzai-style UI</span>
+    </div>
+  </header>
+
+  <main class="layout-grid">
+    <section class="panel panel-form">
+      <div class="panel-header">
+        <h2>Submit transaction</h2>
+        <p>Run a payment through the fraud screening service.</p>
+      </div>
+      <form id="transactionForm" class="transaction-form">
+        <div class="form-row">
+          <label for="merchant">Merchant</label>
+          <input id="merchant" name="merchant" type="text" placeholder="e.g. Orbit Retail" required />
+        </div>
+        <div class="form-row">
+          <label for="amount">Amount</label>
+          <input id="amount" name="amount" type="number" min="1" step="0.01" placeholder="100.00" required />
+        </div>
+        <div class="form-row">
+          <label for="currency">Currency</label>
+          <select id="currency" name="currency">
+            <option value="USD" selected>USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="location">Location</label>
+          <input id="location" name="location" type="text" placeholder="New York, US" required />
+        </div>
+        <div class="form-row">
+          <label for="paymentType">Payment type</label>
+          <select id="paymentType" name="paymentType">
+            <option value="credit">Credit Card</option>
+            <option value="debit">Debit Card</option>
+            <option value="wire">Wire Transfer</option>
+          </select>
+        </div>
+        <div class="form-row full-width">
+          <button type="submit" class="primary-button">Screen Transaction</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel panel-status">
+      <div class="panel-header">
+        <h2>Latest screening result</h2>
+      </div>
+      <div class="status-grid">
+        <article class="status-card">
+          <span>Verdict</span>
+          <strong id="verdictLabel">Awaiting transaction</strong>
+        </article>
+        <article class="status-card">
+          <span>Risk Score</span>
+          <strong id="riskScore">—</strong>
+        </article>
+        <article class="status-card">
+          <span>Decision Path</span>
+          <strong id="decisionPath">Idle</strong>
+        </article>
+      </div>
+      <div class="detail-block">
+        <h3>Reasoning</h3>
+        <p id="verdictReason">Enter transaction details and submit a payment to see how the screening agents classify it.</p>
+      </div>
+      <div class="detail-block">
+        <h3>Specter enrichment</h3>
+        <p id="specterInsight">Specter company and private company enrichment details will appear here after screening.</p>
+      </div>
+    </section>
+
+    <section class="panel panel-log">
+      <div class="panel-header">
+        <h2>Agent workflow log</h2>
+      </div>
+      <div id="logArea" class="log-area"></div>
+    </section>
+
+    <section class="panel panel-table">
+      <div class="panel-header">
+        <h2>Transaction history</h2>
+      </div>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Merchant</th>
+            <th>Amount</th>
+            <th>Risk</th>
+            <th>Verdict</th>
+            <th>Agent track</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
