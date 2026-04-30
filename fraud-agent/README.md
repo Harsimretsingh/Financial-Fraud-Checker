@@ -75,3 +75,14 @@ CSV Upload → POST /process
                 ↓
          SSE push → frontend verdict panel
 ```
+
+## Stripe Webhook Collection
+
+Use Stripe as a real-time transaction source (no sandbox simulator UI):
+
+1. Add to `.env`:
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+2. Start webhook forwarding:
+   - `stripe listen --forward-to localhost:3001/stripe/webhook`
+3. Create test payments in Stripe; on `payment_intent.succeeded`, the backend ingests and scores them through the same pipeline.

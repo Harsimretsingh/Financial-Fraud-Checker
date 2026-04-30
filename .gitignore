@@ -1,0 +1,4 @@
+fraud-agent/node_modules/
+fraud-agent/.env
+tools/
+.claude/
