@@ -1,0 +1,17 @@
+id,date,merchant,amount,user_id
+txn_001,2025-06-02,Amazon Web Services,142.50,user_001
+txn_002,2025-06-03,Slack Technologies,12.50,user_001
+txn_003,2025-06-04,GitHub Inc,4.00,user_001
+txn_004,2025-06-05,Zoom Video Communications,13.99,user_001
+txn_005,2025-06-06,Notion Labs,8.00,user_001
+txn_006,2025-06-09,Figma Inc,15.00,user_001
+txn_007,2025-06-10,Stripe Inc,25.00,user_001
+txn_008,2025-06-11,Deliveroo,32.40,user_001
+txn_009,2025-06-12,AMZN MKTP GB*2X4R,247.00,user_001
+txn_010,2025-06-13,FAST CAPITAL LLC,890.00,user_001
+txn_011,2025-06-16,CONSULTANCY FEE REF,4500.00,user_001
+txn_012,2025-06-17,INTL WIRE TRF 44291,520.00,user_001
+txn_013,2025-06-18,XLNT DIGITAL LTD,1900.00,user_001
+txn_014,2025-06-19,PAY* UNKNOWN 9921X,3400.00,user_001
+txn_015,2025-06-23,OFFSHORE SVC 2241,2100.00,user_001
+txn_016,2025-06-24,DIGITAL PMNT 8821,670.00,user_001
