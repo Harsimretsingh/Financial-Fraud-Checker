@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { chatCompletion, MODEL_FAST } from './llm.js';
 
 export async function generateContextQuestion(txn, classification) {
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const msg = await chatCompletion({
+    model: MODEL_FAST,
     max_tokens: 128,
     messages: [
       {
@@ -28,7 +26,7 @@ Return ONLY valid JSON:
 
   let parsed;
   try {
-    const raw = msg.content[0].text.trim();
+    const raw = msg.content.trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   } catch {

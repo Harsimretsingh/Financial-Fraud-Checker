@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { chatCompletion, MODEL_FAST } from './llm.js';
 
 const CATEGORIES = [
   'SaaS', 'Cloud infra', 'Office supplies', 'Meals', 'Wire transfer',
@@ -11,8 +9,8 @@ const CATEGORIES = [
 export async function classifyTransaction(txn) {
   const start = Date.now();
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const msg = await chatCompletion({
+    model: MODEL_FAST,
     max_tokens: 256,
     messages: [
       {
@@ -41,7 +39,7 @@ Return JSON with exactly these fields:
 
   let parsed;
   try {
-    const raw = msg.content[0].text.trim();
+    const raw = msg.content.trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   } catch {
