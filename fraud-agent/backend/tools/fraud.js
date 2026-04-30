@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { chatCompletion, MODEL_REASONING } from './llm.js';
 
 export async function assessFraudRisk(txn, classification) {
-  const msg = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+  const msg = await chatCompletion({
+    model: MODEL_REASONING,
     max_tokens: 512,
     messages: [
       {
@@ -37,7 +35,7 @@ Return JSON:
 
   let parsed;
   try {
-    const raw = msg.content[0].text.trim();
+    const raw = msg.content.trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   } catch {

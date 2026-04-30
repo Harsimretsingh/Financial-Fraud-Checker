@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { chatCompletion, MODEL_REASONING } from './llm.js';
 
 export async function finalVerdict(txn, classification, enrichment, parsedContext) {
   const contextBlock = parsedContext.explained
@@ -18,8 +16,8 @@ export async function finalVerdict(txn, classification, enrichment, parsedContex
 - Highlights: ${Array.isArray(enrichment.highlights) && enrichment.highlights.length ? enrichment.highlights.join('; ') : 'none'}`
     : `Specter found NO company record for this merchant — this is a strong fraud signal.`;
 
-  const msg = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+  const msg = await chatCompletion({
+    model: MODEL_REASONING,
     max_tokens: 512,
     messages: [
       {
@@ -61,7 +59,7 @@ Return ONLY valid JSON:
 
   let parsed;
   try {
-    const raw = msg.content[0].text.trim();
+    const raw = msg.content.trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   } catch {
