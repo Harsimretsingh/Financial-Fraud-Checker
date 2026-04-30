@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 
 const ACTION_CONFIG = {
-  auto_approve: { label: 'Auto Approved', color: '#1a7f4b', bg: '#f0faf4' },
-  auto_block: { label: 'Auto Blocked', color: '#c0392b', bg: '#fff5f5' },
-  human_review: { label: 'Human Review', color: '#92600a', bg: '#fffbeb' },
-  auto_approved: { label: 'Auto Approved', color: '#1a7f4b', bg: '#f0faf4' },
-  auto_blocked: { label: 'Auto Blocked', color: '#c0392b', bg: '#fff5f5' },
+  auto_approve: { label: 'Approved', color: 'var(--color-text-success)', bg: 'var(--color-background-success)' },
+  auto_block: { label: 'Blocked', color: 'var(--color-text-danger)', bg: 'var(--color-background-danger)' },
+  human_review: { label: 'Review', color: 'var(--color-text-warning)', bg: 'var(--color-background-warning)' },
+  auto_approved: { label: 'Approved', color: 'var(--color-text-success)', bg: 'var(--color-background-success)' },
+  auto_blocked: { label: 'Blocked', color: 'var(--color-text-danger)', bg: 'var(--color-background-danger)' },
 };
 
-const RISK_COLORS = { low: '#1a7f4b', medium: '#92600a', high: '#c0392b' };
+const RISK_COLORS = {
+  low: 'var(--color-text-success)',
+  medium: 'var(--color-text-warning)',
+  high: 'var(--color-text-danger)',
+};
 
 function fmt(amount) {
   return `£${parseFloat(amount || 0).toFixed(2)}`;
@@ -16,14 +20,14 @@ function fmt(amount) {
 
 function Section({ title, children }) {
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 20 }}>
       <div style={{
         fontSize: 11,
-        fontWeight: 600,
+        fontWeight: 700,
         color: 'var(--color-text-tertiary)',
         textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-        marginBottom: 8,
+        letterSpacing: '0.07em',
+        marginBottom: 10,
       }}>
         {title}
       </div>
@@ -34,23 +38,25 @@ function Section({ title, children }) {
 
 function ActionButton({ label, onClick, variant = 'default' }) {
   const styles = {
-    default: { bg: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', border: 'var(--color-border-primary)' },
-    approve: { bg: '#f0faf4', color: '#1a7f4b', border: '#1a7f4b33' },
-    block: { bg: '#fff5f5', color: '#c0392b', border: '#c0392b33' },
+    default: { bg: 'rgba(255,255,255,0.06)', color: 'var(--color-text-primary)', border: 'var(--color-border-secondary)' },
+    approve: { bg: 'var(--color-background-success)', color: 'var(--color-text-success)', border: 'rgba(50,210,150,0.35)' },
+    block: { bg: 'var(--color-background-danger)', color: 'var(--color-text-danger)', border: 'rgba(255,92,122,0.35)' },
   };
   const s = styles[variant] || styles.default;
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
-        padding: '7px 14px',
-        borderRadius: 'var(--border-radius-md)',
-        border: `0.5px solid ${s.border}`,
+        padding: '10px 18px',
+        borderRadius: 'var(--radius-pill)',
+        border: `1px solid ${s.border}`,
         background: s.bg,
         color: s.color,
-        fontSize: 13,
-        fontWeight: 500,
+        fontSize: 14,
+        fontWeight: 600,
         cursor: 'pointer',
+        transition: 'opacity 0.15s ease',
       }}
     >
       {label}
@@ -88,7 +94,6 @@ export default function Detail({ item }) {
     }
   }
 
-  // Reset submitted state when item changes
   React.useEffect(() => {
     setSubmitted(false);
     setReply('');
@@ -97,19 +102,25 @@ export default function Detail({ item }) {
 
   if (!item) {
     return (
-      <div style={{
-        background: 'var(--color-background-primary)',
-        border: '0.5px solid var(--color-border-primary)',
-        borderRadius: 'var(--border-radius-lg)',
-        padding: '48px 24px',
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-        <div style={{ fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-          No transaction selected
+      <div className="rev-card" style={{ padding: '56px 28px', textAlign: 'center' }}>
+        <div style={{
+          width: 56,
+          height: 56,
+          margin: '0 auto 18px',
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(6,102,235,0.35), rgba(50,210,150,0.2))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 26,
+        }}>
+          ◎
         </div>
-        <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>
-          Click an item in the Review Queue to inspect it
+        <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--color-text-primary)', marginBottom: 6, letterSpacing: '-0.02em' }}>
+          Select a transaction
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--color-text-tertiary)', maxWidth: 280, margin: '0 auto' }}>
+          Choose an item from the review queue to see details and respond
         </div>
       </div>
     );
@@ -120,89 +131,126 @@ export default function Detail({ item }) {
   const parsedContext = item.parsedContext;
   const actionCfg = ACTION_CONFIG[verdict?.recommended_action] || ACTION_CONFIG[item.status] || ACTION_CONFIG.human_review;
 
+  const inputStyle = {
+    flex: 1,
+    padding: '14px 16px',
+    borderRadius: 'var(--border-radius-md)',
+    border: '1px solid var(--color-border-secondary)',
+    fontSize: 15,
+    outline: 'none',
+    background: 'rgba(0,0,0,0.35)',
+    color: 'var(--color-text-primary)',
+    fontWeight: 500,
+  };
+
   return (
-    <div style={{
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-primary)',
-      borderRadius: 'var(--border-radius-lg)',
-      overflow: 'hidden',
-    }}>
-      {/* Header */}
+    <div className="rev-card">
       <div style={{
-        padding: '14px 20px',
-        borderBottom: '0.5px solid var(--color-border-primary)',
+        padding: '20px 22px',
+        borderBottom: '1px solid var(--color-border-primary)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
+        gap: 16,
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%)',
       }}>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text-primary)' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontWeight: 800,
+            fontSize: 20,
+            color: 'var(--color-text-primary)',
+            letterSpacing: '-0.03em',
+            lineHeight: 1.2,
+          }}>
             {item.merchant}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+          <div style={{
+            fontSize: 13,
+            color: 'var(--color-text-tertiary)',
+            marginTop: 6,
+            fontWeight: 500,
+          }}>
             {item.date} · {item.user_id} · {item.category}
           </div>
         </div>
         <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 18,
-          fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
+          fontSize: 24,
+          fontWeight: 800,
           color: 'var(--color-text-primary)',
+          letterSpacing: '-0.03em',
+          flexShrink: 0,
         }}>
           {fmt(item.amount)}
         </div>
       </div>
 
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '22px' }}>
 
-        {/* Awaiting Context */}
-        {item.status === 'awaiting_context' && !submitted && (
-          <Section title="Agent Question">
+        {verdict?.escalated_agent && (
+          <Section title="Risk rescore">
             <div style={{
-              padding: '14px 16px',
-              background: 'var(--color-background-secondary)',
-              border: '0.5px solid var(--color-border-primary)',
+              padding: '16px 18px',
+              background: 'rgba(255, 176, 32, 0.08)',
+              border: '1px solid rgba(255, 176, 32, 0.22)',
               borderRadius: 'var(--border-radius-md)',
               fontSize: 14,
-              color: 'var(--color-text-primary)',
-              fontStyle: 'italic',
-              marginBottom: 14,
-              lineHeight: 1.6,
+              color: 'var(--color-text-secondary)',
+              lineHeight: 1.55,
             }}>
-              "{item.question}"
+              <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8, fontSize: 15 }}>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{verdict.risk_score}</span>/100
+                <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600 }}> · </span>
+                <span style={{ textTransform: 'capitalize' }}>{verdict.counterparty_kind}</span>
+              </div>
+              {Array.isArray(verdict.risk_factors) && verdict.risk_factors.length > 0 && (
+                <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--color-text-secondary)' }}>
+                  {verdict.risk_factors.map((f, idx) => (
+                    <li key={idx} style={{ marginBottom: 4 }}>{f}</li>
+                  ))}
+                </ul>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 10, fontWeight: 500 }}>
+                Analyst review only when the score sits in the mid band between auto-approve and auto-block.
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+          </Section>
+        )}
+
+        {item.status === 'awaiting_context' && !submitted && (
+          <Section title="We need a bit more detail">
+            <div style={{
+              padding: '16px 18px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--color-border-primary)',
+              borderRadius: 'var(--border-radius-md)',
+              fontSize: 15,
+              color: 'var(--color-text-primary)',
+              lineHeight: 1.55,
+              marginBottom: 14,
+              fontWeight: 500,
+            }}>
+              {item.question}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={reply}
                 onChange={e => setReply(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="e.g. groceries, contractor payment, team lunch..."
+                placeholder="What was this payment for?"
                 disabled={submitting}
-                style={{
-                  flex: 1,
-                  padding: '9px 12px',
-                  borderRadius: 'var(--border-radius-md)',
-                  border: '0.5px solid var(--color-border-secondary)',
-                  fontSize: 13,
-                  outline: 'none',
-                  background: 'var(--color-background-primary)',
-                  color: 'var(--color-text-primary)',
-                }}
+                style={{ ...inputStyle, minWidth: 200 }}
               />
               <button
+                type="button"
+                className="rev-btn-primary"
                 onClick={handleSubmit}
                 disabled={submitting || !reply.trim()}
                 style={{
-                  padding: '9px 16px',
-                  borderRadius: 'var(--border-radius-md)',
-                  border: 'none',
-                  background: submitting || !reply.trim() ? 'var(--color-background-tertiary)' : 'var(--color-accent)',
-                  color: submitting || !reply.trim() ? 'var(--color-text-tertiary)' : '#ffffff',
-                  fontSize: 13,
-                  fontWeight: 500,
+                  opacity: submitting || !reply.trim() ? 0.45 : 1,
                   cursor: submitting || !reply.trim() ? 'not-allowed' : 'pointer',
-                  transition: 'background 0.15s',
+                  minWidth: 120,
                 }}
               >
                 {submitting ? 'Sending…' : 'Submit'}
@@ -213,142 +261,151 @@ export default function Detail({ item }) {
 
         {item.status === 'awaiting_context' && submitted && (
           <div style={{
-            padding: '16px',
-            background: '#eff6ff',
-            border: '0.5px solid #bfdbfe',
+            padding: '16px 18px',
+            background: 'var(--color-info-bg)',
+            border: '1px solid rgba(6, 102, 235, 0.25)',
             borderRadius: 'var(--border-radius-md)',
-            color: '#1e40af',
-            fontSize: 13,
-            marginBottom: 16,
+            color: 'var(--color-info-text)',
+            fontSize: 14,
+            fontWeight: 600,
+            marginBottom: 18,
           }}>
-            Processing your reply — verdict will appear in the stream shortly…
+            Got it — we are finishing the review…
           </div>
         )}
 
-        {/* Verdict Panel */}
         {verdict && (
           <>
-            <Section title="Verdict">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <Section title="Outcome">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
                 <span style={{
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: actionCfg.color,
                   background: actionCfg.bg,
-                  border: `0.5px solid ${actionCfg.color}33`,
-                  borderRadius: 'var(--border-radius-md)',
-                  padding: '4px 12px',
+                  border: '1px solid var(--color-border-primary)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '6px 14px',
                 }}>
                   {actionCfg.label}
                 </span>
                 <span style={{
-                  fontSize: 12,
+                  fontSize: 13,
                   color: RISK_COLORS[verdict.risk] || 'var(--color-text-secondary)',
-                  fontWeight: 500,
+                  fontWeight: 700,
                 }}>
-                  {verdict.risk} risk · {verdict.confidence}% confidence
+                  {verdict.risk} risk · {verdict.confidence}%
                 </span>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 8 }}>
+              <p style={{
+                fontSize: 15,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.55,
+                marginBottom: 10,
+                fontWeight: 500,
+              }}>
                 {verdict.rationale}
               </p>
               {verdict.key_signal && (
                 <div style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
+                  gap: 8,
+                  fontSize: 13,
                   color: 'var(--color-text-secondary)',
-                  background: 'var(--color-background-secondary)',
-                  border: '0.5px solid var(--color-border-primary)',
-                  borderRadius: 'var(--border-radius-sm)',
-                  padding: '3px 10px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid var(--color-border-primary)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '6px 14px',
+                  fontWeight: 600,
                 }}>
-                  <span style={{ color: 'var(--color-text-tertiary)' }}>Key signal:</span>
-                  <span style={{ fontWeight: 500 }}>{verdict.key_signal}</span>
+                  <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Signal</span>
+                  {verdict.key_signal}
                 </div>
               )}
             </Section>
 
-            {/* Specter Data */}
-            <Section title="Specter Enrichment">
+            <Section title="Counterparty data">
               {enrichment?.found ? (
                 <div style={{
-                  border: '0.5px solid var(--color-border-primary)',
+                  border: '1px solid var(--color-border-primary)',
                   borderRadius: 'var(--border-radius-md)',
                   overflow: 'hidden',
+                  background: 'rgba(0,0,0,0.2)',
                 }}>
                   {[
                     ['Company', enrichment.name],
                     ['Founded', enrichment.founded || '—'],
                     ['Employees', enrichment.employees || '—'],
                     ['Status', enrichment.status || '—'],
-                    ['Total Funding', enrichment.funding ? `$${Number(enrichment.funding).toLocaleString()}` : '—'],
-                    ['Monthly Web Visits', enrichment.web_visits ? Number(enrichment.web_visits).toLocaleString() : '—'],
+                    ['Total funding', enrichment.funding ? `$${Number(enrichment.funding).toLocaleString()}` : '—'],
+                    ['Web visits / mo', enrichment.web_visits ? Number(enrichment.web_visits).toLocaleString() : '—'],
                   ].map(([label, value], i, arr) => (
                     <div key={label} style={{
                       display: 'flex',
-                      padding: '8px 12px',
-                      borderBottom: i < arr.length - 1 ? '0.5px solid var(--color-border-primary)' : 'none',
-                      gap: 12,
+                      padding: '11px 16px',
+                      borderBottom: i < arr.length - 1 ? '1px solid var(--color-border-primary)' : 'none',
+                      gap: 14,
                     }}>
-                      <span style={{ width: 130, fontSize: 12, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>{label}</span>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-primary)', fontWeight: 500 }}>{value}</span>
+                      <span style={{ width: 124, fontSize: 12, fontWeight: 700, color: 'var(--color-text-tertiary)', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+                      <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 600 }}>{value}</span>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div style={{
-                  padding: '12px 14px',
-                  background: '#fff5f5',
-                  border: '0.5px solid #fca5a533',
+                  padding: '14px 16px',
+                  background: 'var(--color-background-danger)',
+                  border: '1px solid rgba(255, 92, 122, 0.25)',
                   borderRadius: 'var(--border-radius-md)',
-                  fontSize: 13,
-                  color: '#c0392b',
-                  fontWeight: 500,
+                  fontSize: 14,
+                  color: 'var(--color-text-danger)',
+                  fontWeight: 700,
                 }}>
-                  ⚠ No company found in Specter — strong fraud signal
+                  No match in our data — higher risk for unknown merchants
                 </div>
               )}
             </Section>
 
-            {/* Context Summary */}
             {parsedContext && (
-              <Section title="Context Summary">
+              <Section title="Your context">
                 <div style={{
-                  padding: '10px 14px',
-                  background: 'var(--color-background-secondary)',
-                  border: '0.5px solid var(--color-border-primary)',
+                  padding: '14px 16px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid var(--color-border-primary)',
                   borderRadius: 'var(--border-radius-md)',
-                  fontSize: 13,
+                  fontSize: 14,
                   color: 'var(--color-text-secondary)',
-                  lineHeight: 1.6,
+                  lineHeight: 1.55,
+                  fontWeight: 500,
                 }}>
-                  <p style={{ marginBottom: parsedContext.category_from_context ? 6 : 0 }}>
+                  <p style={{ marginBottom: parsedContext.category_from_context ? 8 : 0 }}>
                     {parsedContext.summary}
                   </p>
                   {parsedContext.category_from_context && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                       <span style={{
-                        fontSize: 11,
-                        background: 'var(--color-background-tertiary)',
-                        border: '0.5px solid var(--color-border-primary)',
-                        borderRadius: 'var(--border-radius-sm)',
-                        padding: '1px 7px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid var(--color-border-primary)',
+                        borderRadius: 'var(--radius-pill)',
+                        padding: '4px 11px',
                         color: 'var(--color-text-secondary)',
                       }}>
                         {parsedContext.category_from_context}
                       </span>
                       {verdict.specter_matches_context !== null && (
                         <span style={{
-                          fontSize: 11,
-                          borderRadius: 'var(--border-radius-sm)',
-                          padding: '1px 7px',
-                          background: verdict.specter_matches_context ? '#f0faf4' : '#fff5f5',
-                          color: verdict.specter_matches_context ? '#1a7f4b' : '#c0392b',
-                          border: `0.5px solid ${verdict.specter_matches_context ? '#1a7f4b33' : '#c0392b33'}`,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          borderRadius: 'var(--radius-pill)',
+                          padding: '4px 11px',
+                          background: verdict.specter_matches_context ? 'var(--color-background-success)' : 'var(--color-background-danger)',
+                          color: verdict.specter_matches_context ? 'var(--color-text-success)' : 'var(--color-text-danger)',
+                          border: '1px solid var(--color-border-primary)',
                         }}>
-                          {verdict.specter_matches_context ? 'Matches Specter' : 'Mismatch with Specter'}
+                          {verdict.specter_matches_context ? 'Aligned with data' : 'Conflict with data'}
                         </span>
                       )}
                     </div>
@@ -357,12 +414,11 @@ export default function Detail({ item }) {
               </Section>
             )}
 
-            {/* Action Buttons */}
-            <Section title="Actions">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <ActionButton label="Approve Transaction" variant="approve" onClick={() => console.log('approve', item.id)} />
-                <ActionButton label="Block Transaction" variant="block" onClick={() => console.log('block', item.id)} />
-                <ActionButton label="Escalate to Analyst" variant="default" onClick={() => console.log('escalate', item.id)} />
+            <Section title="Quick actions">
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <ActionButton label="Approve" variant="approve" onClick={() => console.log('approve', item.id)} />
+                <ActionButton label="Block" variant="block" onClick={() => console.log('block', item.id)} />
+                <ActionButton label="Escalate" variant="default" onClick={() => console.log('escalate', item.id)} />
               </div>
             </Section>
           </>

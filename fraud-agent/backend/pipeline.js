@@ -3,6 +3,7 @@ import { generateContextQuestion } from './tools/askContext.js';
 import { parseUserContext } from './tools/parseContext.js';
 import { enrichMerchant } from './tools/specter.js';
 import { finalVerdict } from './tools/verdictWithContext.js';
+import { runHighRiskEscalatedAgent } from './agents/highRiskEscalatedAgent.js';
 
 const pendingTransactions = new Map();
 const TIMEOUT_MS = 5 * 60 * 1000;
@@ -25,6 +26,14 @@ export async function processBatch(transactions, push) {
 
       if (classification.confidence >= 85) {
         push({
+          type: 'stage',
+          stage: 'confidence_gate',
+          txnId: txn.id,
+          id: txn.id,
+          branch: 'auto_cleared',
+          merchant: txn.merchant,
+        });
+        push({
           type: 'result',
           status: 'cleared',
           txnId: txn.id,
@@ -39,7 +48,49 @@ export async function processBatch(transactions, push) {
           latency_ms: classification.latency_ms,
           tokens_used: classification.tokens_used,
         });
+      } else if (classification.confidence < 50) {
+        push({
+          type: 'stage',
+          stage: 'confidence_gate',
+          txnId: txn.id,
+          id: txn.id,
+          branch: 'escalated_track',
+          merchant: txn.merchant,
+          confidence: classification.confidence,
+        });
+
+        const outcome = await runHighRiskEscalatedAgent(txn, classification, push);
+
+        push({
+          type: 'result',
+          status: outcome.status,
+          txnId: txn.id,
+          id: txn.id,
+          merchant: txn.merchant,
+          amount: txn.amount,
+          date: txn.date,
+          user_id: txn.user_id,
+          category: classification.category,
+          confidence: classification.confidence,
+          reason: classification.reason,
+          latency_ms: classification.latency_ms,
+          tokens_used: classification.tokens_used,
+          verdict: outcome.verdict,
+          enrichment: outcome.enrichment,
+          parsedContext: outcome.parsedContext,
+          screening_track: outcome.screening_track,
+          risk_score: outcome.risk_score,
+        });
       } else {
+        push({
+          type: 'stage',
+          stage: 'confidence_gate',
+          txnId: txn.id,
+          id: txn.id,
+          branch: 'review_track',
+          merchant: txn.merchant,
+          confidence: classification.confidence,
+        });
         const { question } = await generateContextQuestion(txn, classification);
 
         pendingTransactions.set(txn.id, { txn, classification, question });
@@ -51,7 +102,8 @@ export async function processBatch(transactions, push) {
             parseUserContext(pending.txn, 'User did not respond'),
             enrichMerchant(pending.txn.merchant),
           ]);
-          const verdict = await finalVerdict(pending.txn, pending.classification, enrichment, parsedContext);
+          const tTrack = pending.classification.confidence >= 50 ? 'review' : 'escalated';
+          const verdict = await finalVerdict(pending.txn, pending.classification, enrichment, parsedContext, tTrack);
           const status = mapAction(verdict.recommended_action);
           push({
             type: 'result',
@@ -126,7 +178,8 @@ export async function processContextReply(txnId, userReply, push) {
       enrichMerchant(txn.merchant),
     ]);
 
-    const verdict = await finalVerdict(txn, classification, enrichment, parsedContext);
+    const track = classification.confidence >= 50 ? 'review' : 'escalated';
+    const verdict = await finalVerdict(txn, classification, enrichment, parsedContext, track);
     const status = mapAction(verdict.recommended_action);
 
     push({

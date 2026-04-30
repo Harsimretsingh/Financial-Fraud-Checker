@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Stream from './components/Stream.jsx';
 import Queue from './components/Queue.jsx';
 import Detail from './components/Detail.jsx';
+import SampleShowcase from './components/SampleShowcase.jsx';
+import AgentConsole from './components/AgentConsole.jsx';
 
 const BACKEND = 'http://localhost:3001';
-const MAX_EVENTS = 30;
+const MAX_EVENTS = 36;
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
@@ -18,27 +20,33 @@ function parseCSV(text) {
   });
 }
 
-function StatCard({ label, value, color }) {
+function StatCard({ label, value, accent }) {
   return (
-    <div style={{
-      background: 'var(--color-background-primary)',
-      border: '0.5px solid var(--color-border-primary)',
-      borderRadius: 'var(--border-radius-md)',
-      padding: '12px 16px',
-      flex: 1,
-      minWidth: 100,
-    }}>
+    <div className="rev-stat ux-card-glow" style={{ flex: 1, minWidth: 108 }}>
       <div style={{
-        fontSize: 22,
-        fontWeight: 700,
-        color: color || 'var(--color-text-primary)',
-        fontFamily: 'var(--font-mono)',
-        lineHeight: 1,
-        marginBottom: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        color: 'var(--color-text-tertiary)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        marginBottom: 8,
+        fontFamily: 'var(--font-display)',
       }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 28,
+          fontWeight: 700,
+          color: accent || 'var(--color-text-primary)',
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.03em',
+          lineHeight: 1,
+          fontFamily: 'var(--font-display)',
+        }}
+      >
         {value}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{label}</div>
     </div>
   );
 }
@@ -58,6 +66,12 @@ export default function App() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveIntervalMs, setLiveIntervalMs] = useState(4500);
   const [feedIntervalMs, setFeedIntervalMs] = useState(4500);
+  const [insights, setInsights] = useState({ lastStage: null, stageCount: 0 });
+  const [samplePayments, setSamplePayments] = useState([]);
+  const [sampleMeta, setSampleMeta] = useState(null);
+  const [sampleLoadState, setSampleLoadState] = useState({ loading: true, error: null });
+  const [sampleScreening, setSampleScreening] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
   const esRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -84,21 +98,34 @@ export default function App() {
           return next;
         });
 
-        if (data.status && data.status !== 'cleared') {
-          setQueue(prev => {
-            const existing = prev.findIndex(i => i.id === data.id);
-            if (existing >= 0) {
-              const updated = [...prev];
-              updated[existing] = data;
-              return updated;
-            }
-            return [data, ...prev];
-          });
+        if (data.type === 'stage') {
+          setInsights(prev => ({
+            ...prev,
+            lastStage: data,
+            stageCount: (prev.stageCount || 0) + 1,
+          }));
+        }
 
-          setSelected(prev => {
-            if (prev && prev.id === data.id) return data;
-            return prev;
-          });
+        if (data.type === 'result' && data.id) {
+          const st = data.status;
+          if (st === 'awaiting_context' || st === 'human_review') {
+            setQueue(prev => {
+              const existing = prev.findIndex(i => i.id === data.id);
+              if (existing >= 0) {
+                const updated = [...prev];
+                updated[existing] = data;
+                return updated;
+              }
+              return [data, ...prev];
+            });
+            setSelected(prev => {
+              if (prev && prev.id === data.id) return data;
+              return prev;
+            });
+          } else {
+            setQueue(prev => prev.filter(i => i.id !== data.id));
+            setSelected(prev => (prev && prev.id === data.id ? null : prev));
+          }
         }
       } catch (err) {
         console.error('SSE parse error:', err);
@@ -129,6 +156,28 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${BACKEND}/sample-payments`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setSamplePayments(data.payments || []);
+        setSampleMeta({ title: data.title, description: data.description });
+        setSampleLoadState({ loading: false, error: null });
+      } catch {
+        if (cancelled) return;
+        setSampleLoadState({
+          loading: false,
+          error: 'Could not load sample payments.',
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   async function startLiveFeed() {
     try {
       const res = await fetch(`${BACKEND}/live/start`, {
@@ -153,6 +202,47 @@ export default function App() {
     }
   }
 
+  async function runSampleScreening() {
+    setSampleScreening(true);
+    try {
+      const res = await fetch(`${BACKEND}/demo/sample`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSampleScreening(false);
+    }
+  }
+
+  async function acceptLowRiskBatch() {
+    setBulkWorking(true);
+    try {
+      const targets = queue.filter(
+        i => i.status === 'human_review' && i.verdict?.risk === 'low'
+      );
+      for (const t of targets) {
+        await fetch(`${BACKEND}/agent/decision`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            txnId: t.id,
+            action: 'approve',
+            merchant: t.merchant,
+            amount: t.amount,
+            date: t.date,
+            user_id: t.user_id,
+            category: t.category,
+          }),
+        });
+        await new Promise(r => setTimeout(r, 100));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkWorking(false);
+    }
+  }
+
   async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -172,67 +262,73 @@ export default function App() {
     e.target.value = '';
   }
 
-  const totalProcessed = events.filter(e => e.status).length;
-  const autoCleared = events.filter(e => e.status === 'cleared').length;
+  const stageEvents = events.filter(ev => ev.type === 'stage');
+  const totalProcessed = events.filter(ev => ev.type === 'result' && ev.status).length;
+  const autoCleared = events.filter(ev => ev.status === 'cleared' || ev.status === 'auto_approved').length;
   const inQueue = queue.filter(i => i.status === 'awaiting_context' || i.status === 'human_review').length;
-  const autoBlocked = events.filter(e => e.status === 'auto_blocked').length;
+  const autoBlocked = events.filter(ev => ev.status === 'auto_blocked').length;
+  const lowRiskPending = queue.filter(
+    i => i.status === 'human_review' && i.verdict?.risk === 'low'
+  ).length;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--color-background-secondary)',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Top Bar */}
-      <div style={{
-        background: 'var(--color-background-primary)',
-        borderBottom: '0.5px solid var(--color-border-primary)',
-        padding: '0 24px',
-        height: 52,
+    <div className="rev-shell" style={{ display: 'flex', flexDirection: 'column' }}>
+      <header className="rev-header" style={{
+        padding: '0 max(20px, 4vw)',
+        minHeight: 58,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+        gap: 12,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 'var(--border-radius-md)',
-            background: 'var(--color-accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 14,
-          }}>
-            🛡
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="rev-logo" aria-hidden>R</div>
+          <div>
+            <div className="ux-display" style={{
+              fontWeight: 700,
+              fontSize: 17,
+              color: 'var(--color-text-primary)',
+            }}>
+              Fraud screening
+            </div>
+            <div style={{
+              fontSize: 12,
+              color: 'var(--color-text-tertiary)',
+              marginTop: 2,
+              fontWeight: 500,
+            }}>
+              Autonomous agent · live decisions
+            </div>
           </div>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-primary)' }}>
-            Fraud Agent
-          </span>
-          <span style={{ color: 'var(--color-border-secondary)', fontSize: 18, lineHeight: 1 }}>|</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-            Financial Intelligence Dashboard
-          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 5,
+            gap: 8,
             fontSize: 12,
-            color: connected ? '#1a7f4b' : 'var(--color-text-tertiary)',
+            fontWeight: 700,
+            color: connected ? 'var(--color-text-success)' : 'var(--color-text-tertiary)',
+            fontFamily: 'var(--font-display)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
           }}>
-            <span style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: connected ? '#22c55e' : '#8a94a6',
-              display: 'inline-block',
-            }} />
-            {connected ? 'SSE connected' : 'Reconnecting…'}
+            <span
+              className={connected ? 'rev-pill-live-dot' : ''}
+              style={connected ? {} : {
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: 'var(--color-text-tertiary)',
+                display: 'inline-block',
+              }}
+            />
+            {connected ? 'Live' : 'Reconnecting…'}
           </div>
 
           <select
@@ -293,19 +389,20 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 'var(--border-radius-md)',
-              border: '0.5px solid var(--color-border-secondary)',
-              background: 'var(--color-background-secondary)',
-              color: 'var(--color-text-primary)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
+            className="ux-btn-quiet"
+            disabled={bulkWorking || lowRiskPending === 0}
+            onClick={acceptLowRiskBatch}
+            style={{ opacity: lowRiskPending === 0 ? 0.45 : 1 }}
+            title="Approve all items in review with low model risk"
           >
-            Upload CSV
+            {bulkWorking ? 'Accepting…' : `Auto-accept low risk (${lowRiskPending})`}
+          </button>
+          <button
+            type="button"
+            className="rev-btn-ghost"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Import CSV
           </button>
           <input
             ref={fileInputRef}
@@ -315,7 +412,7 @@ export default function App() {
             style={{ display: 'none' }}
           />
         </div>
-      </div>
+      </header>
 
       {liveActive && (
         <div style={{
@@ -344,33 +441,84 @@ export default function App() {
         </div>
       )}
 
-      {/* Stat Bar */}
       <div style={{
-        padding: '16px 24px 0',
+        padding: '20px max(20px, 4vw) 0',
         display: 'flex',
-        gap: 12,
+        gap: 10,
         flexWrap: 'wrap',
       }}>
-        <StatCard label="Total Processed" value={totalProcessed} />
-        <StatCard label="Auto-Cleared" value={autoCleared} color="#1a7f4b" />
-        <StatCard label="In Queue" value={inQueue} color="#92600a" />
-        <StatCard label="Auto-Blocked" value={autoBlocked} color="#c0392b" />
+        <StatCard label="Processed" value={totalProcessed} />
+        <StatCard label="Released" value={autoCleared} accent="var(--color-text-success)" />
+        <StatCard label="In flow" value={inQueue} accent="var(--color-text-warning)" />
+        <StatCard label="Held" value={autoBlocked} accent="var(--color-text-danger)" />
       </div>
 
-      {/* Main Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gridTemplateRows: 'auto auto',
-        gap: 16,
-        padding: 24,
-        paddingTop: 16,
-        flex: 1,
-      }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%', paddingBottom: 4 }}>
+        <SampleShowcase
+          backendUrl={BACKEND}
+          payments={samplePayments}
+          meta={sampleMeta}
+          loading={sampleLoadState.loading}
+          error={sampleLoadState.error}
+          screening={sampleScreening}
+          onRunScreening={runSampleScreening}
+        />
+      </div>
+
+      <AgentConsole stages={stageEvents} />
+
+      {insights.lastStage && (
+        <div
+          className="rev-insights ux-pipeline-shimmer"
+          style={{
+            margin: '10px max(20px, 4vw) 0',
+            padding: '12px 18px',
+            fontSize: 13,
+            color: 'var(--color-text-secondary)',
+            maxWidth: 1280,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            width: 'calc(100% - 2 * max(20px, 4vw))',
+            fontWeight: 500,
+          }}
+        >
+          <span className="ux-display" style={{ fontWeight: 700, color: 'var(--color-text-primary)', marginRight: 6 }}>Signal</span>
+          {insights.lastStage.stage === 'escalated_agent' && (
+            <>
+              Escalated · {insights.lastStage.phase || '—'}
+              {insights.lastStage.risk_score != null && (
+                <> · score {insights.lastStage.risk_score}/100</>
+              )}
+              {insights.lastStage.routed_action && (
+                <> → {String(insights.lastStage.routed_action).replace(/_/g, ' ')}</>
+              )}
+            </>
+          )}
+          {insights.lastStage.stage === 'confidence_gate' && (
+            <>Gate {insights.lastStage.branch || '—'}{insights.lastStage.confidence != null ? ` · ${insights.lastStage.confidence}%` : ''}</>
+          )}
+          {insights.lastStage.stage && insights.lastStage.stage !== 'escalated_agent' && insights.lastStage.stage !== 'confidence_gate' && (
+            <>{String(insights.lastStage.stage).replace(/_/g, ' ')}</>
+          )}
+        </div>
+      )}
+
+      <div
+        className="rev-main-grid"
+        style={{
+          gridTemplateRows: 'auto auto',
+          padding: '12px max(20px, 4vw) 32px',
+          flex: 1,
+          maxWidth: 1280,
+          margin: '0 auto',
+          width: '100%',
+          alignContent: 'start',
+        }}
+      >
         <Stream events={events} liveActive={liveActive} />
         <Queue items={queue} onSelect={setSelected} selected={selected} />
         <div style={{ gridColumn: '1 / -1' }}>
-          <Detail item={selected} />
+          <Detail item={selected} backendUrl={BACKEND} />
         </div>
       </div>
     </div>

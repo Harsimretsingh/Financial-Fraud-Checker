@@ -1,9 +1,19 @@
 import { chatCompletion, MODEL_REASONING } from './llm.js';
 
-export async function finalVerdict(txn, classification, enrichment, parsedContext) {
+/**
+ * @param {'review'|'escalated'|null} screeningTrack — flowchart path after confidence gate
+ */
+export async function finalVerdict(txn, classification, enrichment, parsedContext, screeningTrack = null) {
   const contextBlock = parsedContext.explained
     ? `User explained: ${parsedContext.summary}. Category from context: ${parsedContext.category_from_context || 'unspecified'}. Seems legitimate: ${parsedContext.seems_legitimate}.`
     : `User did NOT provide a clear explanation — this is a fraud signal. Summary: ${parsedContext.summary}. Seems legitimate: ${parsedContext.seems_legitimate}.`;
+
+  const trackBlock =
+    screeningTrack === 'escalated'
+      ? '\nScreening path: ESCALATED (<50% first-pass confidence). Treat as high scrutiny — unknown or high-risk merchant. Prefer auto_block or human_review when signals conflict; require strong benign evidence for auto_approve.\n'
+      : screeningTrack === 'review'
+        ? '\nScreening path: REVIEW (50–84% first-pass confidence). Uncertain — needs strong Specter alignment for auto_approve; use human_review when still ambiguous after enrichment.\n'
+        : '';
 
   const specterBlock = enrichment.found
     ? `Specter company data found:
@@ -22,8 +32,8 @@ export async function finalVerdict(txn, classification, enrichment, parsedContex
     messages: [
       {
         role: 'user',
-        content: `You are a financial fraud analyst. Make a final verdict on this transaction.
-
+        content: `You are a financial fraud analyst (second pass, reasoning-grade model). Make a final verdict on this transaction.
+${trackBlock}
 Transaction:
 - Merchant: ${txn.merchant}
 - Amount: £${parseFloat(txn.amount).toFixed(2)}
