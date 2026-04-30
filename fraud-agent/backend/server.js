@@ -2,14 +2,42 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { processBatch, processContextReply } from './pipeline.js';
+import {
+  startLiveFeed,
+  stopLiveFeed,
+  isLiveActive,
+  getIntervalMs,
+} from './liveFeed.js';
+import {
+  handleStripeWebhook,
+} from './stripeIngest.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
-app.use(express.json());
 
 app.locals.clients = [];
+
+function pushToClients(clients, data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of clients) {
+    client.write(payload);
+    if (typeof client.flush === 'function') client.flush();
+  }
+}
+
+/** Stripe needs raw body for signature verification — must be before express.json() */
+app.post(
+  '/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    const push = (data) => pushToClients(app.locals.clients, data);
+    return handleStripeWebhook(req, res, { push });
+  }
+);
+
+app.use(express.json());
 
 app.get('/stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -24,14 +52,6 @@ app.get('/stream', (req, res) => {
   });
 });
 
-function pushToClients(clients, data) {
-  const payload = `data: ${JSON.stringify(data)}\n\n`;
-  for (const client of clients) {
-    client.write(payload);
-    if (typeof client.flush === 'function') client.flush();
-  }
-}
-
 app.post('/process', async (req, res) => {
   const { transactions } = req.body;
   if (!Array.isArray(transactions) || transactions.length === 0) {
@@ -44,6 +64,29 @@ app.post('/process', async (req, res) => {
   processBatch(transactions, push).catch(err =>
     console.error('processBatch error:', err)
   );
+});
+
+app.post('/live/start', (req, res) => {
+  const push = (data) => pushToClients(app.locals.clients, data);
+  const { intervalMs } = startLiveFeed(push, {
+    intervalMs: req.body?.intervalMs,
+  });
+  push({ type: 'live_status', active: true, intervalMs });
+  res.json({ status: 'started', active: true, intervalMs });
+});
+
+app.post('/live/stop', (req, res) => {
+  stopLiveFeed();
+  const push = (data) => pushToClients(app.locals.clients, data);
+  push({ type: 'live_status', active: false });
+  res.json({ status: 'stopped', active: false });
+});
+
+app.get('/live/status', (req, res) => {
+  res.json({
+    active: isLiveActive(),
+    intervalMs: getIntervalMs(),
+  });
 });
 
 app.post('/context', async (req, res) => {

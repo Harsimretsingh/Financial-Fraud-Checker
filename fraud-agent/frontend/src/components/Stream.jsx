@@ -14,7 +14,7 @@ function fmt(amount) {
   return `£${parseFloat(amount || 0).toFixed(2)}`;
 }
 
-export default function Stream({ events }) {
+export default function Stream({ events, liveActive }) {
   const listRef = useRef(null);
 
   return (
@@ -38,17 +38,18 @@ export default function Stream({ events }) {
           gap: 6,
           fontSize: 12,
           fontWeight: 500,
-          color: '#22c55e',
+          color: liveActive ? '#22c55e' : 'var(--color-text-tertiary)',
         }}>
           <span style={{
             width: 7,
             height: 7,
             borderRadius: '50%',
-            background: '#22c55e',
+            background: liveActive ? '#22c55e' : '#cbd5e1',
             display: 'inline-block',
-            boxShadow: '0 0 0 2px #dcfce7',
+            boxShadow: liveActive ? '0 0 0 2px #dcfce7' : 'none',
+            animation: liveActive ? 'pulse-dot 1.5s ease-in-out infinite' : 'none',
           }} />
-          Live
+          {liveActive ? 'Feed active' : 'Idle'}
         </span>
       </div>
 
@@ -66,8 +67,11 @@ export default function Stream({ events }) {
             textAlign: 'center',
             color: 'var(--color-text-tertiary)',
             fontSize: 13,
+            lineHeight: 1.6,
           }}>
-            Upload a CSV to start processing transactions
+            {liveActive
+              ? 'Synthetic transactions will appear here as they are scored…'
+              : 'Use Stripe webhook events, start the live portal feed, or upload a CSV batch.'}
           </div>
         )}
         {events.map((event, i) => {

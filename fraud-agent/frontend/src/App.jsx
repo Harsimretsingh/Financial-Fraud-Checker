@@ -43,11 +43,21 @@ function StatCard({ label, value, color }) {
   );
 }
 
+const FEED_OPTIONS = [
+  { label: 'Every 3s', ms: 3000 },
+  { label: 'Every 4.5s', ms: 4500 },
+  { label: 'Every 6s', ms: 6000 },
+  { label: 'Every 10s', ms: 10000 },
+];
+
 export default function App() {
   const [events, setEvents] = useState([]);
   const [queue, setQueue] = useState([]);
   const [selected, setSelected] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [liveActive, setLiveActive] = useState(false);
+  const [liveIntervalMs, setLiveIntervalMs] = useState(4500);
+  const [feedIntervalMs, setFeedIntervalMs] = useState(4500);
   const esRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -62,6 +72,11 @@ export default function App() {
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+        if (data.type === 'live_status') {
+          setLiveActive(Boolean(data.active));
+          if (typeof data.intervalMs === 'number') setLiveIntervalMs(data.intervalMs);
+          return;
+        }
         if (data.type === 'processing') return;
 
         setEvents(prev => {
@@ -103,6 +118,40 @@ export default function App() {
       if (esRef.current) esRef.current.close();
     };
   }, [connectSSE]);
+
+  useEffect(() => {
+    fetch(`${BACKEND}/live/status`)
+      .then(r => r.json())
+      .then(d => {
+        setLiveActive(Boolean(d.active));
+        if (typeof d.intervalMs === 'number') setLiveIntervalMs(d.intervalMs);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function startLiveFeed() {
+    try {
+      const res = await fetch(`${BACKEND}/live/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intervalMs: feedIntervalMs }),
+      });
+      const data = await res.json();
+      if (data.intervalMs) setLiveIntervalMs(data.intervalMs);
+      setLiveActive(true);
+    } catch (err) {
+      console.error('Live start failed:', err);
+    }
+  }
+
+  async function stopLiveFeed() {
+    try {
+      await fetch(`${BACKEND}/live/stop`, { method: 'POST' });
+      setLiveActive(false);
+    } catch (err) {
+      console.error('Live stop failed:', err);
+    }
+  }
 
   async function handleFileUpload(e) {
     const file = e.target.files[0];
@@ -168,7 +217,7 @@ export default function App() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -183,9 +232,67 @@ export default function App() {
               background: connected ? '#22c55e' : '#8a94a6',
               display: 'inline-block',
             }} />
-            {connected ? 'Connected' : 'Reconnecting…'}
+            {connected ? 'SSE connected' : 'Reconnecting…'}
           </div>
+
+          <select
+            value={feedIntervalMs}
+            onChange={e => setFeedIntervalMs(Number(e.target.value))}
+            disabled={liveActive}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 'var(--border-radius-md)',
+              border: '0.5px solid var(--color-border-secondary)',
+              background: 'var(--color-background-primary)',
+              color: 'var(--color-text-primary)',
+              fontSize: 12,
+              cursor: liveActive ? 'not-allowed' : 'pointer',
+            }}
+            title="Time between synthetic transactions"
+          >
+            {FEED_OPTIONS.map(o => (
+              <option key={o.ms} value={o.ms}>{o.label}</option>
+            ))}
+          </select>
+
+          {liveActive ? (
+            <button
+              type="button"
+              onClick={stopLiveFeed}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--border-radius-md)',
+                border: '0.5px solid #fca5a5',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Stop live feed
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startLiveFeed}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--border-radius-md)',
+                border: '0.5px solid #86efac',
+                background: '#f0fdf4',
+                color: '#166534',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Start live portal
+            </button>
+          )}
+
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             style={{
               padding: '6px 14px',
@@ -210,6 +317,33 @@ export default function App() {
         </div>
       </div>
 
+      {liveActive && (
+        <div style={{
+          background: 'linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 50%, #ecfdf5 100%)',
+          borderBottom: '0.5px solid #bbf7d0',
+          padding: '8px 24px',
+          fontSize: 12,
+          color: '#166534',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexShrink: 0,
+        }}>
+          <span style={{
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#22c55e',
+            animation: 'pulse-dot 1.5s ease-in-out infinite',
+          }} />
+          <strong>Live portal</strong>
+          <span style={{ color: '#15803d' }}>
+            Synthetic transactions are streaming — next tick about every {(liveIntervalMs / 1000).toFixed(1)}s. Same real-time pipeline as production (classify → queue → verdict).
+          </span>
+        </div>
+      )}
+
       {/* Stat Bar */}
       <div style={{
         padding: '16px 24px 0',
@@ -233,7 +367,7 @@ export default function App() {
         paddingTop: 16,
         flex: 1,
       }}>
-        <Stream events={events} />
+        <Stream events={events} liveActive={liveActive} />
         <Queue items={queue} onSelect={setSelected} selected={selected} />
         <div style={{ gridColumn: '1 / -1' }}>
           <Detail item={selected} />
